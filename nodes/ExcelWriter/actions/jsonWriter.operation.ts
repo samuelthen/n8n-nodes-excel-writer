@@ -8,81 +8,73 @@ export async function writeJsonToExcel(this: IExecuteFunctions, items: INodeExec
   for (let i = 0; i < items.length; i++) {
     const { binary = {}, json } = items[i];
 
-    // 1) Load Excel buffer
-    if (!binary.data) {
-      throw new Error('No binary Excel file found in input "data".');
-    }
-    const excelBuffer = await this.helpers.getBinaryDataBuffer(i, 'data');
+    // 1) Parameters
+    const excelField     = this.getNodeParameter('excelField',     i) as string; // e.g. "excel"
+    const dataField      = this.getNodeParameter('dataField',      i) as string; // e.g. "data"
+    const sheetName      = this.getNodeParameter('sheetName',      i) as string;
+    const serialNumber   = this.getNodeParameter('serialNumber',   i) as number;
+    const outputFileName = this.getNodeParameter('outputFileName', i) as string;
 
-    // 2) Determine rawPayload: prefer binary.text, else items[i].json
+    // 2) Load Excel buffer
+    if (!binary[excelField]?.data) {
+      throw new Error(`No Excel binary found in field "${excelField}".`);
+    }
+    const excelBuffer = await this.helpers.getBinaryDataBuffer(i, excelField);
+
+    // 3) Load raw payload
     let rawPayload: unknown;
-    if (binary.text) {
-      const textBuffer = await this.helpers.getBinaryDataBuffer(i, 'text');
-      rawPayload = JSON.parse(textBuffer.toString('utf-8'));
+    if (binary[dataField]?.data) {
+      // Binary slot (e.g. a .json file)
+      const buf = await this.helpers.getBinaryDataBuffer(i, dataField);
+      const txt = buf.toString('utf8');
+      try {
+        rawPayload = JSON.parse(txt);
+      } catch {
+        throw new Error(`Binary field "${dataField}" did not contain valid JSON.`);
+      }
+    } else if (json[dataField] !== undefined) {
+      // JSON field on the item
+      rawPayload = json[dataField];
     } else {
-      rawPayload = json;
+      throw new Error(`Data field "${dataField}" not found in item.`);
     }
 
-    // 3) If rawPayload is an object with exactly one key, unwrap it
+    // 4) Ensure it's an object
     let jsonData: Record<string, any>;
-    if (
-      typeof rawPayload === 'object' &&
-      rawPayload !== null &&
-      !Array.isArray(rawPayload) &&
-      Object.keys(rawPayload).length === 1
-    ) {
-      const inner = (rawPayload as Record<string, any>)[Object.keys(rawPayload)[0]];
-      // if it’s a JSON string, parse it
-      if (typeof inner === 'string') {
-        jsonData = JSON.parse(inner);
-      } else if (typeof inner === 'object' && inner !== null) {
-        jsonData = inner;
-      } else {
-        throw new Error('Wrapped value is not an object or JSON string.');
-      }
-    } else if (typeof rawPayload === 'object' && rawPayload !== null) {
+    if (typeof rawPayload === 'object' && rawPayload !== null) {
       jsonData = rawPayload as Record<string, any>;
     } else {
-      throw new Error('Payload is not a JSON object.');
+      throw new Error(`Payload must be a JSON object, got "${typeof rawPayload}".`);
     }
 
-    // 4) Write jsonData to Excel
-    const sheetName = this.getNodeParameter('sheetName', i) as string;
-    const serialNumber = this.getNodeParameter('serialNumber', i) as number;
-
+    // 5) Write into Excel
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(excelBuffer);
-
     const sheet = workbook.getWorksheet(sheetName);
-    if (!sheet) {
-      throw new Error(`Sheet "${sheetName}" not found.`);
-    }
+    if (!sheet) throw new Error(`Sheet "${sheetName}" not found.`);
 
     const rowOffset = 1;
-    const rowNum = serialNumber + rowOffset;
+    const rowNum    = serialNumber + rowOffset;
 
     for (const [key, value] of Object.entries(jsonData)) {
       const colIndex = findOrCreateColumn(sheet, key, rowOffset);
-      const cell = sheet.getCell(rowNum, colIndex);
-      if (
-        typeof value === 'string' ||
-        typeof value === 'number' ||
-        typeof value === 'boolean' ||
-        value === null
-      ) {
-        cell.value = value;
-      } else {
-        cell.value = JSON.stringify(value);
-      }
+      const cell     = sheet.getCell(rowNum, colIndex);
+      cell.value     = ['string','number','boolean'].includes(typeof value) || value === null
+                        ? value
+                        : JSON.stringify(value);
       cell.alignment = { wrapText: true };
       sheet.getColumn(colIndex).width = 50;
     }
 
+    // 6) Return updated Excel
     const updatedBuffer = await workbook.xlsx.writeBuffer();
     returnData.push({
       json: { success: true },
       binary: {
-        data: await this.helpers.prepareBinaryData(updatedBuffer as Buffer, 'updated.xlsx'),
+        [excelField]: await this.helpers.prepareBinaryData(
+          updatedBuffer as Buffer,
+          outputFileName,
+        ),
       },
     });
   }
