@@ -21,7 +21,8 @@ export class ExcelWriter implements INodeType {
 		defaults: {
 			name: 'Excel Writer',
 		},
-		inputs: [NodeConnectionType.Main],
+		inputs: [NodeConnectionType.Main, NodeConnectionType.Main], // Two input streams
+		inputNames: ['Excel File', 'Data File'],
 		outputs: [NodeConnectionType.Main],
 		properties: [
 			{
@@ -73,17 +74,58 @@ export class ExcelWriter implements INodeType {
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		const items = this.getInputData();
+		const inputs = [this.getInputData(0), this.getInputData(1)];
+
+		if (inputs[0] === undefined || inputs[0].length === 0) {
+			throw new NodeOperationError(this.getNode(), 'Input 1 is empty or missing.');
+		}
+
+		// Support single or dual input by defaulting to input[0] if input[1] is missing
+		const inputA = inputs[0];
+		const inputB = inputs[1] ?? [];
+
+		// Use whichever input contains the Excel file (binary.data)
+		const mergedItems: INodeExecutionData[] = inputA.map((itemA, index) => {
+			const itemB = inputB[index] ?? itemA;
+
+			// Determine which item contains the Excel file
+			const hasExcelInA = itemA.binary?.data !== undefined;
+			const hasExcelInB = itemB.binary?.data !== undefined;
+
+			let excelItem: INodeExecutionData;
+			let dataItem: INodeExecutionData;
+
+			if (hasExcelInA && !hasExcelInB) {
+				excelItem = itemA;
+				dataItem = itemB;
+			} else if (hasExcelInB && !hasExcelInA) {
+				excelItem = itemB;
+				dataItem = itemA;
+			} else if (hasExcelInA && hasExcelInB) {
+				throw new NodeOperationError(this.getNode(), 'Both inputs contain Excel binary. Only one should.');
+			} else {
+				throw new NodeOperationError(this.getNode(), 'No Excel binary found in either input.');
+			}
+
+			return {
+				json: dataItem.json,
+				binary: {
+					...(dataItem.binary ?? {}),
+					data: excelItem.binary!.data,
+				},
+			};
+		});
+
 		const operation = this.getNodeParameter('operation', 0) as 'json' | 'text' | 'image';
 
 		try {
 			switch (operation) {
 				case 'json':
-					return await writeJsonToExcel.call(this, items);
+					return await writeJsonToExcel.call(this, mergedItems);
 				case 'text':
-					return await writeTextToExcel.call(this, items);
+					return await writeTextToExcel.call(this, mergedItems);
 				case 'image':
-					return await writeImageToExcel.call(this, items);
+					return await writeImageToExcel.call(this, mergedItems);
 				default:
 					throw new NodeOperationError(this.getNode(), `Unsupported operation "${operation}"`);
 			}
@@ -94,4 +136,5 @@ export class ExcelWriter implements INodeType {
 			throw new NodeOperationError(this.getNode(), error);
 		}
 	}
+
 }

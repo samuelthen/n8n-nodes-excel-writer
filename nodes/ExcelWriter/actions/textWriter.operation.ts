@@ -6,23 +6,23 @@ export async function writeTextToExcel(this: IExecuteFunctions, items: INodeExec
 	const returnData: INodeExecutionData[] = [];
 
 	for (let i = 0; i < items.length; i++) {
-		const sheetName = this.getNodeParameter('sheetName', i) as string;
-		const serialNumber = this.getNodeParameter('serialNumber', i) as number;
-		const headerTitle = this.getNodeParameter('headerTitle', i) as string;
-
-		const binaryExcel = items[i].binary?.data;
-		const binaryText = items[i].binary?.text;
-
-		if (!binaryExcel) {
-			throw new Error('Binary Excel file (data) not found in input.');
+		const binary = items[i].binary ?? {};
+		if (!binary.data) {
+			throw new Error('No binary Excel file found in input "data".');
 		}
-		if (!binaryText) {
-			throw new Error('Binary text file (text) not found in input.');
+
+		const textBinaryKey = binary.text ? 'text' : undefined;
+		if (!textBinaryKey) {
+			throw new Error('No binary text file found in input "text".');
 		}
 
 		const excelBuffer = await this.helpers.getBinaryDataBuffer(i, 'data');
-		const textBuffer = await this.helpers.getBinaryDataBuffer(i, 'text');
-		const textData = textBuffer.toString('utf-8');
+		const textBuffer = await this.helpers.getBinaryDataBuffer(i, textBinaryKey);
+		const textContent = textBuffer.toString('utf-8');
+
+		const sheetName = this.getNodeParameter('sheetName', i) as string;
+		const serialNumber = this.getNodeParameter('serialNumber', i) as number;
+		const headerTitle = this.getNodeParameter('headerTitle', i) as string;
 
 		const workbook = new ExcelJS.Workbook();
 		await workbook.xlsx.load(excelBuffer);
@@ -34,10 +34,11 @@ export async function writeTextToExcel(this: IExecuteFunctions, items: INodeExec
 
 		const rowOffset = 1;
 		const rowNum = serialNumber + rowOffset;
-		const colIndex = findOrCreateColumn(sheet, headerTitle, rowOffset);
 
+		const colIndex = findOrCreateColumn(sheet, headerTitle, rowOffset);
 		const cell = sheet.getCell(rowNum, colIndex);
-		cell.value = textData;
+
+		cell.value = textContent;
 		cell.alignment = { wrapText: true };
 		sheet.getColumn(colIndex).width = 50;
 
