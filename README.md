@@ -1,16 +1,24 @@
 # n8n-nodes-excel-writer
 
-This is an n8n community node that allows you to **write text, JSON objects, and images into Excel files** as part of your workflows.
+This is an n8n community node. It lets you use Excel file manipulation in your n8n workflows.
 
-It uses the powerful [`exceljs`](https://github.com/exceljs/exceljs) and [`sharp`](https://sharp.pixelplumbing.com/) libraries to dynamically edit `.xlsx` files in memory — no external services required.
+This node enables you to write text, JSON objects, and insert images into `.xlsx` Excel files using the `exceljs` and `sharp` libraries, entirely in memory. It's ideal for automated report generation, templated document filling, and embedding media into spreadsheets.
 
-[n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
+[n8n](https://n8n.io) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
 
 ---
 
 ## Installation
 
-Follow the [community node installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) to install this node into your self-hosted n8n instance.
+Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation.
+
+In your self-hosted n8n instance directory, run:
+
+```bash
+npm install n8n-nodes-excel-writer
+```
+
+Then restart your n8n instance. Make sure `N8N_COMMUNITY_PACKAGES_ENABLED=true` is set in your `.env` file.
 
 ---
 
@@ -19,67 +27,65 @@ Follow the [community node installation guide](https://docs.n8n.io/integrations/
 This node supports the following operations:
 
 ### 📝 Write Text to Excel
-
-- Inserts a single text value into a specified cell based on column header and row number.
-- Automatically creates the column if it doesn't exist.
-- Supports custom sheet name and output file name.
+- Writes a single string into a specific cell based on column header and row number.
 
 ### 📄 Write JSON to Excel
-
-- Accepts a JSON object and writes each key-value pair into the corresponding column.
-- Automatically maps or creates column headers based on the object keys.
-- Supports structured input from either JSON or binary `.json` file.
+- Maps a JSON object to multiple columns in one row.
+- Can read input from a JSON field or `.json` file in a binary field.
 
 ### 🖼️ Write Image to Excel
-
-- Inserts an image (PNG, JPG, or GIF) into a specific cell.
-- Automatically resizes and places the image inside the target cell.
-- Works with binary image fields from sources like HTTP, file upload, or `Read Binary File`.
+- Inserts a binary image (JPG, PNG, or GIF) into a specific cell.
+- Supports auto-resizing and column/row adjustments.
 
 ---
 
-## Parameters
+## Credentials
 
-Each operation supports these customizable parameters:
-
-| Name             | Type    | Description                                                                 |
-|------------------|---------|-----------------------------------------------------------------------------|
-| `excelField`     | string  | Binary field name that contains the Excel file (default: `data`)           |
-| `dataField`      | string  | For text/JSON: JSON key. For images: binary field name containing the image |
-| `sheetName`      | string  | Name of the sheet in the Excel file                                        |
-| `headerTitle`    | string  | (For text/image) Column header to match or create                          |
-| `serialNumber`   | number  | Row number (1-based) to write into (excluding header row)                  |
-| `outputFileName` | string  | File name for the updated Excel file                                       |
+❌ No authentication is required. This node works entirely with local or provided binary `.xlsx` and `.json` files. It does not connect to an external service.
 
 ---
 
 ## Compatibility
 
-- ✅ n8n `v1.60.0+`
-- ✅ Fully tested on `v1.64.3`
+- ✅ Minimum required n8n version: `1.60.0`
+- ✅ Tested on n8n `1.64.3`
+- ✅ Compatible with local, Docker, and cloud self-hosted n8n environments
 - ⚠️ Node must receive a valid `.xlsx` binary file
 
 ---
 
-## Usage Tips
+## Usage
 
-- Use `Read Binary File` or `HTTP Request (Response: file)` to load your `.xlsx` file into the binary field.
-- For images, use nodes like `Read Binary File`, `Move Binary Data`, or `Webhook` with `Binary` input.
-- `dataField` is overloaded by design to accept either:
-  - A **JSON key** (for text and JSON writing)
-  - A **binary field name** (for image insertion)
+To use this node:
+
+1. Use an upstream node to provide a binary Excel file:
+   - `Read Binary File`
+   - `HTTP Request` (Response: file)
+   - `Google Drive → Download`, etc.
+
+2. Add the **Excel Writer** node and select an operation:
+   - For text or JSON, use a JSON input or structured object.
+   - For image insertion, make sure a binary image is present.
+
+3. Fill in the following key fields:
+   - `excelField` — name of the binary field with the Excel file (default: `data`)
+   - `dataField` — text/JSON key or image binary field name
+   - `sheetName`, `headerTitle`, `serialNumber` — used to place content
+   - `outputFileName` — name of the updated Excel file to return
+
+Refer to the [Try it out](https://docs.n8n.io/try-it-out/) documentation if you're new to n8n workflows.
 
 ---
 
 ## Resources
 
-- [n8n Community Nodes Documentation](https://docs.n8n.io/integrations/#community-nodes)
-- [exceljs on GitHub](https://github.com/exceljs/exceljs)
-- [sharp image library](https://sharp.pixelplumbing.com/)
+- [n8n community nodes documentation](https://docs.n8n.io/integrations/community-nodes/)
+- [exceljs documentation](https://github.com/exceljs/exceljs)
+- [sharp documentation](https://sharp.pixelplumbing.com/)
 
 ---
 
-## Version History
+## Version history
 
 | Version | Changes                                      |
 |---------|----------------------------------------------|
@@ -89,4 +95,5 @@ Each operation supports these customizable parameters:
 
 ## License
 
-This project follows the [n8n fair-code license](https://docs.n8n.io/reference/license/).
+This project is licensed under the [MIT License](./LICENSE).  
+Note that n8n is distributed under the [Sustainable Use License](https://docs.n8n.io/reference/license/).
