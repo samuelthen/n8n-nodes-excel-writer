@@ -6,48 +6,51 @@ export async function writeTextToExcel(this: IExecuteFunctions, items: INodeExec
 	const returnData: INodeExecutionData[] = [];
 
 	for (let i = 0; i < items.length; i++) {
-		const binary = items[i].binary ?? {};
-		if (!binary.data) {
-			throw new Error('No binary Excel file found in input "data".');
+		const { binary = {}, json } = items[i];
+
+		// ── 1) Parameters ──────────────────────────────────────────────────────
+		const excelField     = this.getNodeParameter('excelField',     i) as string;
+		const dataField      = this.getNodeParameter('dataField',      i) as string;
+		const headerTitle    = this.getNodeParameter('headerTitle',    i) as string;
+		const sheetName      = this.getNodeParameter('sheetName',      i) as string;
+		const serialNumber   = this.getNodeParameter('serialNumber',   i) as number;
+		const outputFileName = this.getNodeParameter('outputFileName', i) as string;
+
+		// ── 2) Validate Excel ──────────────────────────────────────────────────
+		if (!binary[excelField]?.data) {
+			throw new Error(`No Excel binary found in field "${excelField}".`);
+		}
+		const excelBuffer = await this.helpers.getBinaryDataBuffer(i, excelField);
+
+		// ── 3) Get value from JSON[dataField] ──────────────────────────────────
+		const textValue = json[dataField];
+		if (typeof textValue !== 'string') {
+			throw new Error(`Expected a string in field "${dataField}", but got "${typeof textValue}".`);
 		}
 
-		const textBinaryKey = binary.text ? 'text' : undefined;
-		if (!textBinaryKey) {
-			throw new Error('No binary text file found in input "text".');
-		}
-
-		const excelBuffer = await this.helpers.getBinaryDataBuffer(i, 'data');
-		const textBuffer = await this.helpers.getBinaryDataBuffer(i, textBinaryKey);
-		const textContent = textBuffer.toString('utf-8');
-
-		const sheetName = this.getNodeParameter('sheetName', i) as string;
-		const serialNumber = this.getNodeParameter('serialNumber', i) as number;
-		const headerTitle = this.getNodeParameter('headerTitle', i) as string;
-
+		// ── 4) Load Excel and locate cell ──────────────────────────────────────
 		const workbook = new ExcelJS.Workbook();
 		await workbook.xlsx.load(excelBuffer);
-
 		const sheet = workbook.getWorksheet(sheetName);
 		if (!sheet) {
 			throw new Error(`Sheet "${sheetName}" not found in Excel file.`);
 		}
 
 		const rowOffset = 1;
-		const rowNum = serialNumber + rowOffset;
+		const rowNum    = serialNumber + rowOffset;
+		const colIndex  = findOrCreateColumn(sheet, headerTitle, rowOffset);
+		const cell      = sheet.getCell(rowNum, colIndex);
 
-		const colIndex = findOrCreateColumn(sheet, headerTitle, rowOffset);
-		const cell = sheet.getCell(rowNum, colIndex);
-
-		cell.value = textContent;
+		cell.value = textValue;
 		cell.alignment = { wrapText: true };
 		sheet.getColumn(colIndex).width = 50;
 
+		// ── 5) Output updated Excel ────────────────────────────────────────────
 		const updatedBuffer = await workbook.xlsx.writeBuffer();
-
 		returnData.push({
 			json: { success: true },
 			binary: {
-				data: await this.helpers.prepareBinaryData(updatedBuffer as Buffer, 'updated.xlsx'),
+				[excelField]: await this.helpers.prepareBinaryData(updatedBuffer as Buffer, outputFileName),
 			},
 		});
 	}
