@@ -7,29 +7,43 @@ export async function writeImageToExcel(this: IExecuteFunctions, items: INodeExe
 	const returnData: INodeExecutionData[] = [];
 
 	for (let i = 0; i < items.length; i++) {
-		const sheetName = this.getNodeParameter('sheetName', i) as string;
-		const serialNumber = this.getNodeParameter('serialNumber', i) as number;
-		const headerTitle = this.getNodeParameter('headerTitle', i) as string;
+		const { binary = {} } = items[i];
 
-		const binaryExcel = items[i].binary?.data;
-		const binaryImage = items[i].binary?.image;
+		// ── 1) Parameters ──────────────────────────────────────────────────────
+		const excelField     = this.getNodeParameter('excelField',     i) as string;
+		const dataField      = this.getNodeParameter('dataField',      i) as string; // image binary field
+		const sheetName      = this.getNodeParameter('sheetName',      i) as string;
+		const headerTitle    = this.getNodeParameter('headerTitle',    i) as string;
+		const serialNumber   = this.getNodeParameter('serialNumber',   i) as number;
+		const outputFileName = this.getNodeParameter('outputFileName', i) as string;
 
-		if (!binaryExcel) {
-			throw new Error('Binary Excel file (data) not found in input.');
+		// ── 2) Validate binary inputs ──────────────────────────────────────────
+		if (!binary[excelField]?.data) {
+			throw new Error(`No Excel binary found in field "${excelField}".`);
+		}
+		if (!binary[dataField]?.data) {
+			throw new Error(`No image binary found in field "${dataField}".`);
 		}
 
-		if (!binaryImage) {
-			throw new Error('Binary image (image) not found in input.');
+		// ── 3) Read Excel and Image Buffers ────────────────────────────────────
+		const excelBuffer = await this.helpers.getBinaryDataBuffer(i, excelField);
+
+		let imageBuffer: Buffer;
+		if (binary[dataField]?.id) {
+			imageBuffer = await this.helpers.getBinaryDataBuffer(i, dataField);
+		} else {
+			imageBuffer = Buffer.from(binary[dataField].data, 'base64');
 		}
 
-		const excelBuffer = await this.helpers.getBinaryDataBuffer(i, 'data');
-		const imageBuffer = await this.helpers.getBinaryDataBuffer(i, 'image');
+		// ── 4) Validate image extension ────────────────────────────────────────
+		const extRaw = (binary[dataField].fileExtension || 'png').toLowerCase();
+		const ext = extRaw === 'jpg' ? 'jpeg' : extRaw;
 
-		const ext = (binaryImage.fileExtension || 'png').toLowerCase();
-		if (!['png', 'jpeg', 'jpg', 'gif'].includes(ext)) {
-			throw new Error(`Unsupported image extension: ${ext}`);
+		if (!['png', 'jpeg', 'gif'].includes(ext)) {
+			throw new Error(`Unsupported image extension: ${extRaw}`);
 		}
 
+		// ── 5) Load Excel and locate position ──────────────────────────────────
 		const workbook = new ExcelJS.Workbook();
 		await workbook.xlsx.load(excelBuffer);
 
@@ -39,15 +53,16 @@ export async function writeImageToExcel(this: IExecuteFunctions, items: INodeExe
 		}
 
 		const rowOffset = 1;
-		const rowNum = serialNumber + rowOffset;
-		const colIndex = findOrCreateColumn(sheet, headerTitle, rowOffset);
+		const rowNum    = serialNumber + rowOffset;
+		const colIndex  = findOrCreateColumn(sheet, headerTitle, rowOffset);
 
+		// ── 6) Resize image and insert ─────────────────────────────────────────
 		const resizedBuffer = await sharp(imageBuffer)
 			.resize({ width: 700, height: 467, fit: 'inside' })
 			.toBuffer();
 
 		const imageId = workbook.addImage({
-			buffer: resizedBuffer as Buffer,
+			buffer: resizedBuffer,
 			extension: ext as 'png' | 'jpeg' | 'gif',
 		});
 
@@ -60,12 +75,12 @@ export async function writeImageToExcel(this: IExecuteFunctions, items: INodeExe
 		sheet.getColumn(colIndex).width = 100;
 		sheet.getRow(rowNum).height = 350;
 
+		// ── 7) Output updated Excel ────────────────────────────────────────────
 		const updatedBuffer = await workbook.xlsx.writeBuffer();
-
 		returnData.push({
 			json: { success: true },
 			binary: {
-				data: await this.helpers.prepareBinaryData(updatedBuffer as Buffer, 'updated.xlsx'),
+				[excelField]: await this.helpers.prepareBinaryData(updatedBuffer as Buffer, outputFileName),
 			},
 		});
 	}
