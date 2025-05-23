@@ -69,8 +69,7 @@ export class ExcelWriter implements INodeType {
 				name: 'serialNumber',
 				type: 'number',
 				default: 1,
-				description:
-					'The row index where data will start (row 1 is reserved for column headers)',
+				description: 'The row index where data will start (row 1 is reserved for column headers)',
 			},
 			{
 				displayName: 'Output File Name',
@@ -94,8 +93,7 @@ export class ExcelWriter implements INodeType {
 				name: 'saveAll',
 				type: 'boolean',
 				default: false,
-				description:
-					'When writing images, save each one in its own folder inside the sheet',
+				description: 'When writing images, save each one in its own folder inside the sheet',
 				displayOptions: {
 					show: { operation: ['image'] },
 				},
@@ -104,12 +102,10 @@ export class ExcelWriter implements INodeType {
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		// 1) Read the field-name parameters:
 		const excelField  = this.getNodeParameter('excelField', 0) as string;
 		const dataField   = this.getNodeParameter('dataField',  0) as string;
 		const operation   = this.getNodeParameter('operation',  0) as 'json' | 'text' | 'image';
 
-		// 2) Grab both input streams:
 		const excelItems = this.getInputData(0);
 		const dataItems  = this.getInputData(1) ?? [];
 
@@ -117,36 +113,27 @@ export class ExcelWriter implements INodeType {
 			throw new NodeOperationError(this.getNode(), 'First input (Excel) is empty.');
 		}
 
-		// 3) Merge them into one array of items,
-		//    attaching both binaries under the correct keys:
 		const mergedItems: INodeExecutionData[] = excelItems.map((excelItem, index) => {
 			const dataItem = dataItems[index] ?? {};
 
-			// Ensure the Excel binary is there:
 			if (!excelItem.binary?.[excelField]) {
 				throw new NodeOperationError(
 					this.getNode(),
 					`No Excel binary found in field "${excelField}". ` +
-					`Available keys: ${Object.keys(excelItem.binary || {}).join(', ')}`,
+					`Available: ${Object.keys(excelItem.binary || {}).join(', ')}`,
 				);
 			}
 
-			// Build the merged item:
 			return {
 				json: dataItem.json ?? {},
 				binary: {
-					// Excel file under its configured key:
 					[excelField]: excelItem.binary![excelField],
-					// If there's a data binary, attach it under its key:
-					...(dataItem.binary?.[dataField]
-						? { [dataField]: dataItem.binary[dataField] }
-						: {}),
+					...(dataItem.binary?.[dataField] ? { [dataField]: dataItem.binary[dataField] } : {}),
 				},
 			};
 		});
 
 		try {
-			// 4) Delegate to the correct writer:
 			switch (operation) {
 				case 'json':
 					return await writeJsonToExcel.call(this, mergedItems);
@@ -162,7 +149,6 @@ export class ExcelWriter implements INodeType {
 			throw err;
 		}
 
-		// (unreachable, but TypeScript needs it)
-		return [ [] ];
+		return [[]]; // fallback for TypeScript
 	}
 }

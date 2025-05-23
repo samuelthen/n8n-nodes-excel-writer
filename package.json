@@ -32,17 +32,22 @@
   ],
   "n8n": {
     "n8nNodesApiVersion": 1,
-    "credentials": [
-    ],
+    "credentials": [],
     "nodes": [
+      "dist/nodes/CustomTools/MarkdownToWord.node.js",
       "dist/nodes/ExcelWriter/ExcelWriter.node.js"
     ]
   },
   "dependencies": {
-    "sharp": "^0.34.2",
-    "exceljs": "^4.4.0"
+    "exceljs": "^4.4.0",
+    "html-docx-js-typescript": "^0.1.5",
+    "jsdom": "^24.0.0",
+    "markdown-it": "^13.0.1",
+    "sharp": "^0.34.2"
   },
   "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/markdown-it": "^14.1.2",
     "@typescript-eslint/parser": "~8.32.0",
     "eslint": "^8.57.0",
     "eslint-plugin-n8n-nodes-base": "^1.16.3",
