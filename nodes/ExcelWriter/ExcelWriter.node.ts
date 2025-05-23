@@ -19,7 +19,7 @@ export class ExcelWriter implements INodeType {
 		name: 'excelWriter',
 		icon: {
 			light: 'file:excel.svg',
-			dark: 'file:convertToFile.excel.svg',
+			dark: 'file:excel.svg',
 		},
 		group: ['transform'],
 		version: 1,

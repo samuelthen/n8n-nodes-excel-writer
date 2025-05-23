@@ -13,6 +13,10 @@ export class MarkdownToWord implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Markdown to Word',
 		name: 'markdownToWord',
+		icon: {
+			light: 'file:word.svg',
+			dark: 'file:word.svg',
+		},
 		group: ['transform'],
 		version: 1,
 		description: 'Converts Markdown text to a Word (.docx) file and returns it as binary',
@@ -32,7 +36,7 @@ export class MarkdownToWord implements INodeType {
 				default: '',
 			},
 			{
-				displayName: 'Filename',
+				displayName: 'Output Filename',
 				name: 'filename',
 				type: 'string',
 				default: 'document.docx',
@@ -48,7 +52,7 @@ export class MarkdownToWord implements INodeType {
 			const filename = this.getNodeParameter('filename', i) as string;
 
 			// Convert Markdown to HTML
-			const md = new MarkdownIt({ html: true });
+			const md = new MarkdownIt({ html: true, breaks: true });
 			const htmlContent = md.render(markdownText);
 
 			// Wrap HTML in a full DOM
